@@ -93,6 +93,33 @@ impl Universe {
             log(&life.x.to_string());
         })
     }
+
+    pub fn render(&self, context: web_sys::CanvasRenderingContext2d) {
+        let tmp_stroke_style = context.stroke_style();
+        let tmp_fill_style = context.fill_style();
+        let color = &JsValue::from_str("#192");
+
+        context.set_stroke_style(color);
+        context.set_fill_style(color);
+
+        self.lives.iter().for_each(|life| {
+            context.begin_path();
+            context
+                .arc(
+                    life.x as f64,
+                    life.y as f64,
+                    5.0,
+                    0.0,
+                    std::f64::consts::PI * 2.0,
+                )
+                .unwrap();
+            context.fill();
+            context.stroke();
+        });
+
+        context.set_stroke_style(&tmp_stroke_style);
+        context.set_fill_style(&tmp_fill_style);
+    }
 }
 
 #[wasm_bindgen]
