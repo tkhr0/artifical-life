@@ -180,12 +180,10 @@ fn draw_field(width: f64, height: f64) {
         .dyn_into::<web_sys::CanvasRenderingContext2d>()
         .unwrap();
 
-    ctx.move_to(0.0, 0.0);
-    ctx.line_to(width, 0.0);
-    ctx.line_to(width, height);
-    ctx.line_to(0.0, height);
-    ctx.close_path();
-
+    ctx.set_fill_style(&JsValue::from_str("#fff"));
+    ctx.fill_rect(0.0, 0.0, width, height);
+    ctx.set_stroke_style(&JsValue::from_str("#000"));
+    ctx.stroke_rect(0.0, 0.0, width, height);
     ctx.stroke();
 }
 
