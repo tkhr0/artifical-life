@@ -122,6 +122,13 @@ impl Universe {
     }
 }
 
+// debug function
+// usage: log(&typeof(hoge))
+fn type_of<T>(_: T) -> String {
+    let a = std::any::type_name::<T>();
+    return a.to_string();
+}
+
 #[wasm_bindgen]
 pub fn start() {
     let mut universe = Universe::new();
