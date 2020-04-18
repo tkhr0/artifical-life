@@ -147,14 +147,19 @@ fn render_loop(universe: Universe) {
     {
         let width = universe.width as f64;
         let height = universe.height as f64;
-        let lives = Rc::new(universe.lives).clone();
+        let univ = Rc::new(RefCell::new(universe)).clone();
 
         let f = Rc::new(RefCell::new(None));
         let g = f.clone();
-
         *g.borrow_mut() = Some(Closure::wrap(Box::new(move || {
             draw_field(width, height);
-            draw_universe(lives.borrow());
+            {
+                univ.borrow_mut().next_step();
+            }
+
+            (univ.borrow() as &RefCell<Universe>)
+                .borrow()
+                .render(get_canvas_context());
 
             request_animation_frame(f.as_ref().borrow().as_ref().unwrap());
         }) as Box<dyn FnMut()>));
@@ -184,30 +189,17 @@ fn draw_field(width: f64, height: f64) {
     ctx.stroke();
 }
 
-fn draw_universe(lives: &Vec<Life>) {
+fn get_canvas_context() -> web_sys::CanvasRenderingContext2d {
     let element = document()
         .get_element_by_id("canvas-universe")
         .expect("not found `canvas`");
     let canvas = element.dyn_into::<web_sys::HtmlCanvasElement>().unwrap();
-    let ctx = canvas
+    canvas
         .get_context("2d")
         .unwrap()
         .unwrap()
         .dyn_into::<web_sys::CanvasRenderingContext2d>()
-        .unwrap();
-
-    lives.iter().for_each(|life| {
-        ctx.arc(
-            life.x as f64,
-            life.y as f64,
-            5.0,
-            0.0,
-            std::f64::consts::PI * 2.0,
-        )
-        .unwrap();
-    });
-
-    ctx.close_path();
+        .unwrap()
 }
 
 fn window() -> web_sys::Window {
