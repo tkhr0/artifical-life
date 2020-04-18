@@ -126,7 +126,7 @@ impl Universe {
 pub fn start() {
     let mut universe = Universe::new();
 
-    universe.lives = (0..10)
+    universe.lives = (1..20)
         .map(|i| Life {
             x: i * 10,
             y: i * 10,
