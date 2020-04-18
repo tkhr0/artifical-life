@@ -2,6 +2,7 @@ mod utils;
 
 extern crate wasm_bindgen;
 extern crate web_sys;
+use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
@@ -80,16 +81,21 @@ pub fn start() {
 
 fn render_loop(universe: Universe) {
     {
+        let width = universe.width as f64;
+        let height = universe.height as f64;
+        let lives = Rc::new(universe.lives).clone();
+
         let f = Rc::new(RefCell::new(None));
         let g = f.clone();
 
         *g.borrow_mut() = Some(Closure::wrap(Box::new(move || {
-            draw_field(universe.width as f64, universe.height as f64);
+            draw_field(width, height);
+            draw_universe(lives.borrow());
 
-            request_animation_frame(f.borrow().as_ref().unwrap());
+            request_animation_frame(f.as_ref().borrow().as_ref().unwrap());
         }) as Box<dyn FnMut()>));
 
-        request_animation_frame(g.borrow().as_ref().unwrap());
+        request_animation_frame(g.as_ref().borrow().as_ref().unwrap());
     }
 }
 
@@ -112,6 +118,32 @@ fn draw_field(width: f64, height: f64) {
     ctx.close_path();
 
     ctx.stroke();
+}
+
+fn draw_universe(lives: &Vec<Life>) {
+    let element = document()
+        .get_element_by_id("canvas-universe")
+        .expect("not found `canvas`");
+    let canvas = element.dyn_into::<web_sys::HtmlCanvasElement>().unwrap();
+    let ctx = canvas
+        .get_context("2d")
+        .unwrap()
+        .unwrap()
+        .dyn_into::<web_sys::CanvasRenderingContext2d>()
+        .unwrap();
+
+    lives.iter().for_each(|life| {
+        ctx.arc(
+            life.x as f64,
+            life.y as f64,
+            5.0,
+            0.0,
+            std::f64::consts::PI * 2.0,
+        )
+        .unwrap();
+    });
+
+    ctx.close_path();
 }
 
 fn window() -> web_sys::Window {
