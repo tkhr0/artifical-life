@@ -29,12 +29,12 @@ pub struct Universe {
 
 #[wasm_bindgen]
 impl Universe {
-    pub fn new() -> Universe {
+    pub fn new() -> Self {
         let width = 500;
         let height = 500;
         let lives = (0..20).map(|i| Life { x: i, y: i }).collect();
 
-        Universe {
+        Self {
             width: width,
             height: height,
             lives: lives,
