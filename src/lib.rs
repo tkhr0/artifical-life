@@ -59,16 +59,32 @@ impl Universe {
 
 #[wasm_bindgen]
 pub fn start() {
-    render_loop();
+    let mut universe = Universe::new();
+
+    universe.lives = (0..10)
+        .map(|i| Life {
+            x: i * 10,
+            y: i * 10,
+        })
+        .collect();
+
+    let element = document()
+        .get_element_by_id("canvas-universe")
+        .expect("not found `canvas`");
+    let canvas = element.dyn_into::<web_sys::HtmlCanvasElement>().unwrap();
+    canvas.set_width(((universe.width as f32) * 1.2) as u32);
+    canvas.set_height(((universe.height as f32) * 1.2) as u32);
+
+    render_loop(universe);
 }
 
-fn render_loop() {
+fn render_loop(universe: Universe) {
     {
         let f = Rc::new(RefCell::new(None));
         let g = f.clone();
 
         *g.borrow_mut() = Some(Closure::wrap(Box::new(move || {
-            draw_field();
+            draw_field(universe.width as f64, universe.height as f64);
 
             request_animation_frame(f.borrow().as_ref().unwrap());
         }) as Box<dyn FnMut()>));
@@ -77,7 +93,7 @@ fn render_loop() {
     }
 }
 
-fn draw_field() {
+fn draw_field(width: f64, height: f64) {
     let element = document()
         .get_element_by_id("canvas-universe")
         .expect("not found `canvas`");
@@ -90,9 +106,9 @@ fn draw_field() {
         .unwrap();
 
     ctx.move_to(0.0, 0.0);
-    ctx.line_to(20.0, 0.0);
-    ctx.line_to(20.0, 20.0);
-    ctx.line_to(0.0, 20.0);
+    ctx.line_to(width, 0.0);
+    ctx.line_to(width, height);
+    ctx.line_to(0.0, height);
     ctx.close_path();
 
     ctx.stroke();
