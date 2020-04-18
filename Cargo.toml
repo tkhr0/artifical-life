@@ -33,8 +33,13 @@ features = [
   "Element",
   "Document",
   "HtmlCanvasElement",
+  "Path2d",
   "Window"
 ]
+
+[dependencies.rand]
+version = "0.7"
+features = ["wasm-bindgen"]
 
 [dev-dependencies]
 wasm-bindgen-test = "0.2"

@@ -2,6 +2,7 @@ mod utils;
 
 extern crate wasm_bindgen;
 extern crate web_sys;
+use rand::{thread_rng, Rng};
 use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -61,6 +62,36 @@ impl Universe {
 
     pub fn lives_size(&self) -> usize {
         self.lives.len()
+    }
+
+    pub fn next_step(&mut self) {
+        let width = self.width;
+        let height = self.height;
+
+        self.lives.iter_mut().for_each(|life| {
+            let mut rng = thread_rng();
+            let direction: u32 = rng.gen_range(0, 4);
+            log(&direction.to_string());
+
+            let dx: i32 = match direction {
+                1 => 1,
+                3 => -1,
+                _ => 0,
+            };
+            let dy: i32 = match direction {
+                0 => -1,
+                2 => 1,
+                _ => 0,
+            };
+
+            if (dx < 0 && 0 < life.x) || (0 < dx && life.x < width) {
+                life.x = ((life.x as i32) + dx) as u32;
+            }
+            if (dy < 0 && 0 < life.y) || (0 < dy && life.y < height) {
+                life.y = ((life.y as i32) + dy) as u32;
+            }
+            log(&life.x.to_string());
+        })
     }
 }
 
