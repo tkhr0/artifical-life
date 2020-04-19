@@ -131,23 +131,38 @@ impl Life {
             self.set_direction(rand::random());
         }
 
-        let dx: i32 = match self.direction {
-            Some(Direction::EAST) => 1,
-            Some(Direction::WEST) => -1,
-            _ => 0,
-        };
-        let dy: i32 = match self.direction {
-            Some(Direction::NORTH) => -1,
-            Some(Direction::SOUTH) => 1,
-            _ => 0,
-        };
+        // 進む距離
+        const D: u32 = 1;
+        let half_of_size: u32 = (self.size as f32 / 2.0f32).ceil() as u32;
+        match self.direction {
+            Some(Direction::NORTH) => {
+                let top = self.y as i32 - half_of_size as i32;
+                if (top - D as i32).is_positive() {
+                    self.y -= D;
+                }
+            }
+            Some(Direction::EAST) => {
+                let right_side = self.x + half_of_size;
+                if right_side + D < field.width {
+                    self.x += D;
+                }
+            }
+            Some(Direction::SOUTH) => {
+                let bottom = self.y + half_of_size;
+                if bottom + D < field.height {
+                    self.y += D;
+                }
+            }
+            Some(Direction::WEST) => {
+                let left_side = self.x as i32 - half_of_size as i32;
 
-        if (dx < 0 && 0 < self.x) || (0 < dx && self.x < field.width) {
-            self.x = ((self.x as i32) + dx) as u32;
+                if (left_side - D as i32).is_positive() {
+                    self.x -= D;
+                }
+            }
+            _ => {}
         }
-        if (dy < 0 && 0 < self.y) || (0 < dy && self.y < field.height) {
-            self.y = ((self.y as i32) + dy) as u32;
-        }
+
         debug(&self.x.to_string());
     }
 
