@@ -72,14 +72,11 @@ impl Universe {
         self.lives.len()
     }
 
-    pub fn birth(&mut self) {
+    pub fn birth(&mut self, num: u32) {
         let mut rng = thread_rng();
 
-        self.lives = (1..300)
-            .map(|_| Life {
-                x: rng.gen_range(0, self.width),
-                y: rng.gen_range(0, self.height),
-            })
+        self.lives = (0..num)
+            .map(|_| Life::new(rng.gen_range(0, self.width), rng.gen_range(0, self.height)))
             .collect();
     }
 
@@ -151,7 +148,7 @@ fn type_of<T>(_: T) -> String {
 #[wasm_bindgen]
 pub fn start() {
     let mut universe = Universe::new();
-    universe.birth();
+    universe.birth(300);
 
     let element = document()
         .get_element_by_id("canvas-universe")
