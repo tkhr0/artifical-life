@@ -39,7 +39,7 @@ impl Universe {
     pub fn new() -> Self {
         let width = 500;
         let height = 500;
-        let lives = (0..20).map(|i| Life { x: i, y: i }).collect();
+        let lives: Vec<Life> = vec![];
 
         Self {
             width: width,
@@ -62,6 +62,17 @@ impl Universe {
 
     pub fn lives_size(&self) -> usize {
         self.lives.len()
+    }
+
+    pub fn birth(&mut self) {
+        let mut rng = thread_rng();
+
+        self.lives = (1..300)
+            .map(|_| Life {
+                x: rng.gen_range(0, self.width),
+                y: rng.gen_range(0, self.height),
+            })
+            .collect();
     }
 
     pub fn next_step(&mut self) {
@@ -132,13 +143,7 @@ fn type_of<T>(_: T) -> String {
 #[wasm_bindgen]
 pub fn start() {
     let mut universe = Universe::new();
-
-    universe.lives = (1..20)
-        .map(|i| Life {
-            x: i * 10,
-            y: i * 10,
-        })
-        .collect();
+    universe.birth();
 
     let element = document()
         .get_element_by_id("canvas-universe")
