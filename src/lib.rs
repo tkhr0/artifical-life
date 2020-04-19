@@ -121,7 +121,7 @@ impl Life {
         }
     }
 
-    pub fn next_step(&mut self, width: u32, height: u32) {
+    pub fn next_step(&mut self, field: &Field) {
         if self.change_direction() {
             self.set_direction(rand::random());
         }
@@ -137,10 +137,10 @@ impl Life {
             _ => 0,
         };
 
-        if (dx < 0 && 0 < self.x) || (0 < dx && self.x < width) {
+        if (dx < 0 && 0 < self.x) || (0 < dx && self.x < field.width) {
             self.x = ((self.x as i32) + dx) as u32;
         }
-        if (dy < 0 && 0 < self.y) || (0 < dy && self.y < height) {
+        if (dy < 0 && 0 < self.y) || (0 < dy && self.y < field.height) {
             self.y = ((self.y as i32) + dy) as u32;
         }
         debug(&self.x.to_string());
@@ -170,9 +170,14 @@ impl Life {
 }
 
 #[wasm_bindgen]
-pub struct Universe {
+pub struct Field {
     width: u32,
     height: u32,
+}
+
+#[wasm_bindgen]
+pub struct Universe {
+    field: Field,
     lives: Vec<Life>,
     renderer: Renderer,
 }
@@ -180,11 +185,11 @@ pub struct Universe {
 #[wasm_bindgen]
 impl Universe {
     pub fn new(width: u32, height: u32, renderer: Renderer) -> Self {
+        let field = Field { width, height };
         let lives: Vec<Life> = vec![];
 
         Self {
-            width,
-            height,
+            field,
             lives,
             renderer,
         }
@@ -194,24 +199,37 @@ impl Universe {
         let mut rng = rand::thread_rng();
 
         self.lives = (0..num)
-            .map(|_| Life::new(rng.gen_range(0, self.width), rng.gen_range(0, self.height)))
+            .map(|_| {
+                Life::new(
+                    rng.gen_range(0, self.field.width),
+                    rng.gen_range(0, self.field.height),
+                )
+            })
             .collect();
     }
 
     pub fn next_step(&mut self) {
-        let width = self.width;
-        let height = self.height;
-
-        self.lives.iter_mut().for_each(|life| {
-            life.next_step(width, height);
+        let field = &self.field;
+        self.lives.iter_mut().for_each(move |life| {
+            life.next_step(field);
         })
     }
 
     pub fn render(&self) {
-        self.renderer
-            .fill_rect(0.0, 0.0, self.width as f64, self.height as f64, "#fff");
-        self.renderer
-            .stroke_rect(0.0, 0.0, self.width as f64, self.height as f64, "#000");
+        self.renderer.fill_rect(
+            0.0,
+            0.0,
+            self.field.width as f64,
+            self.field.height as f64,
+            "#fff",
+        );
+        self.renderer.stroke_rect(
+            0.0,
+            0.0,
+            self.field.width as f64,
+            self.field.height as f64,
+            "#000",
+        );
 
         self.lives.iter().for_each(|life| {
             life.render(&self.renderer);
