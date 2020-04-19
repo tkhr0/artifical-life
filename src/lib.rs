@@ -107,6 +107,7 @@ pub struct Life {
     y: u32,
     rng: rand::prelude::ThreadRng,
     direction: Option<Direction>,
+    color: &'static str,
 }
 
 impl Life {
@@ -116,6 +117,7 @@ impl Life {
             y: y,
             rng: rand::thread_rng(),
             direction: None,
+            color: "#192",
         }
     }
 
@@ -161,8 +163,8 @@ impl Life {
             5.0,
             0.0,
             std::f64::consts::PI * 2.0,
-            "#192",
-            "#192",
+            self.color,
+            self.color,
         );
     }
 }
