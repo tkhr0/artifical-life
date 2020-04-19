@@ -2,7 +2,7 @@ mod utils;
 
 extern crate wasm_bindgen;
 extern crate web_sys;
-use rand::{thread_rng, Rng};
+use rand::Rng;
 use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -83,11 +83,40 @@ impl Renderer {
 pub struct Life {
     x: u32,
     y: u32,
+    rng: rand::prelude::ThreadRng,
 }
 
 impl Life {
     pub fn new(x: u32, y: u32) -> Self {
-        Self { x: x, y: y }
+        Self {
+            x: x,
+            y: y,
+            rng: rand::thread_rng(),
+        }
+    }
+
+    pub fn next_step(&mut self, width: u32, height: u32) {
+        let direction: u32 = self.rng.gen_range(0, 4);
+        debug(&direction.to_string());
+
+        let dx: i32 = match direction {
+            1 => 1,
+            3 => -1,
+            _ => 0,
+        };
+        let dy: i32 = match direction {
+            0 => -1,
+            2 => 1,
+            _ => 0,
+        };
+
+        if (dx < 0 && 0 < self.x) || (0 < dx && self.x < width) {
+            self.x = ((self.x as i32) + dx) as u32;
+        }
+        if (dy < 0 && 0 < self.y) || (0 < dy && self.y < height) {
+            self.y = ((self.y as i32) + dy) as u32;
+        }
+        debug(&self.x.to_string());
     }
 
     pub fn render(&self, renderer: &Renderer) {
@@ -125,7 +154,7 @@ impl Universe {
     }
 
     pub fn birth(&mut self, num: u32) {
-        let mut rng = thread_rng();
+        let mut rng = rand::thread_rng();
 
         self.lives = (0..num)
             .map(|_| Life::new(rng.gen_range(0, self.width), rng.gen_range(0, self.height)))
@@ -137,28 +166,7 @@ impl Universe {
         let height = self.height;
 
         self.lives.iter_mut().for_each(|life| {
-            let mut rng = thread_rng();
-            let direction: u32 = rng.gen_range(0, 4);
-            debug(&direction.to_string());
-
-            let dx: i32 = match direction {
-                1 => 1,
-                3 => -1,
-                _ => 0,
-            };
-            let dy: i32 = match direction {
-                0 => -1,
-                2 => 1,
-                _ => 0,
-            };
-
-            if (dx < 0 && 0 < life.x) || (0 < dx && life.x < width) {
-                life.x = ((life.x as i32) + dx) as u32;
-            }
-            if (dy < 0 && 0 < life.y) || (0 < dy && life.y < height) {
-                life.y = ((life.y as i32) + dy) as u32;
-            }
-            debug(&life.x.to_string());
+            life.next_step(width, height);
         })
     }
 
