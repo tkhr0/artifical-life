@@ -21,6 +21,14 @@ extern "C" {
     fn log(s: &str);
 }
 
+const DEBUG: bool = false;
+
+fn debug(message: &str) {
+    if DEBUG {
+        log(message);
+    }
+}
+
 #[wasm_bindgen]
 pub struct Life {
     x: u32,
@@ -82,7 +90,7 @@ impl Universe {
         self.lives.iter_mut().for_each(|life| {
             let mut rng = thread_rng();
             let direction: u32 = rng.gen_range(0, 4);
-            log(&direction.to_string());
+            debug(&direction.to_string());
 
             let dx: i32 = match direction {
                 1 => 1,
@@ -101,7 +109,7 @@ impl Universe {
             if (dy < 0 && 0 < life.y) || (0 < dy && life.y < height) {
                 life.y = ((life.y as i32) + dy) as u32;
             }
-            log(&life.x.to_string());
+            debug(&life.x.to_string());
         })
     }
 
