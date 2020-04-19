@@ -203,11 +203,13 @@ impl Universe {
     pub fn birth(&mut self, num: u32) {
         let mut rng = rand::thread_rng();
 
+        // half of size
+        let hos = (DEFAULT_LIFE_SIZE as f32 / 2.0f32).ceil() as u32;
         self.lives = (0..num)
             .map(|_| {
                 Life::new(
-                    rng.gen_range(0, self.field.width),
-                    rng.gen_range(0, self.field.height),
+                    rng.gen_range(hos, self.field.width - hos),
+                    rng.gen_range(hos, self.field.height - hos),
                 )
             })
             .collect();
