@@ -2,6 +2,7 @@ mod utils;
 
 extern crate wasm_bindgen;
 extern crate web_sys;
+use rand::distributions::{Distribution, Standard};
 use rand::Rng;
 use std::borrow::Borrow;
 use std::cell::RefCell;
@@ -79,11 +80,33 @@ impl Renderer {
     }
 }
 
+/// 進行方向を表す列挙型
+#[wasm_bindgen]
+#[derive(PartialEq)]
+pub enum Direction {
+    NORTH,
+    EAST,
+    SOUTH,
+    WEST,
+}
+
+impl Distribution<Direction> for Standard {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Direction {
+        match rng.gen_range(0, 4) {
+            0 => Direction::NORTH,
+            1 => Direction::EAST,
+            2 => Direction::SOUTH,
+            _ => Direction::WEST,
+        }
+    }
+}
+
 #[wasm_bindgen]
 pub struct Life {
     x: u32,
     y: u32,
     rng: rand::prelude::ThreadRng,
+    direction: Option<Direction>,
 }
 
 impl Life {
@@ -92,21 +115,23 @@ impl Life {
             x: x,
             y: y,
             rng: rand::thread_rng(),
+            direction: None,
         }
     }
 
     pub fn next_step(&mut self, width: u32, height: u32) {
-        let direction: u32 = self.rng.gen_range(0, 4);
-        debug(&direction.to_string());
+        if self.change_direction() {
+            self.set_direction(rand::random());
+        }
 
-        let dx: i32 = match direction {
-            1 => 1,
-            3 => -1,
+        let dx: i32 = match self.direction {
+            Some(Direction::EAST) => 1,
+            Some(Direction::WEST) => -1,
             _ => 0,
         };
-        let dy: i32 = match direction {
-            0 => -1,
-            2 => 1,
+        let dy: i32 = match self.direction {
+            Some(Direction::NORTH) => -1,
+            Some(Direction::SOUTH) => 1,
             _ => 0,
         };
 
@@ -117,6 +142,16 @@ impl Life {
             self.y = ((self.y as i32) + dy) as u32;
         }
         debug(&self.x.to_string());
+    }
+
+    /// 方向を変えるかどうか
+    pub fn change_direction(&mut self) -> bool {
+        self.rng.gen_bool(1.0 / 10.0)
+    }
+
+    /// 進行方向を決める
+    pub fn set_direction(&mut self, direction: Option<Direction>) {
+        self.direction = direction
     }
 
     pub fn render(&self, renderer: &Renderer) {
