@@ -105,16 +105,21 @@ impl Distribution<Direction> for Standard {
 pub struct Life {
     x: u32,
     y: u32,
+    // 直径
+    size: u32,
     rng: rand::prelude::ThreadRng,
     direction: Option<Direction>,
     color: &'static str,
 }
+
+const DEFAULT_LIFE_SIZE: u32 = 10;
 
 impl Life {
     pub fn new(x: u32, y: u32) -> Self {
         Self {
             x: x,
             y: y,
+            size: DEFAULT_LIFE_SIZE,
             rng: rand::thread_rng(),
             direction: None,
             color: "#192",
@@ -160,7 +165,7 @@ impl Life {
         renderer.arc(
             self.x as f64,
             self.y as f64,
-            5.0,
+            (self.size as f64) / 2.0,
             0.0,
             std::f64::consts::PI * 2.0,
             self.color,
