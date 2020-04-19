@@ -30,9 +30,77 @@ fn debug(message: &str) {
 }
 
 #[wasm_bindgen]
+pub struct Renderer {
+    context: web_sys::CanvasRenderingContext2d,
+}
+
+impl Renderer {
+    /// Renderer のコンストラクタ
+    ///
+    /// 2次元の canvas に描画する
+    pub fn new(context: web_sys::CanvasRenderingContext2d) -> Self {
+        Self { context }
+    }
+
+    /// 塗りつぶした四角形を描画する
+    pub fn fill_rect(&self, x: f64, y: f64, w: f64, h: f64, fill_color: &str) {
+        self.context.set_fill_style(&JsValue::from_str(fill_color));
+        self.context.fill_rect(x, y, w, h);
+    }
+
+    /// 四角形を描画する
+    pub fn stroke_rect(&self, x: f64, y: f64, w: f64, h: f64, stroke_color: &str) {
+        self.context
+            .set_stroke_style(&JsValue::from_str(stroke_color));
+        self.context.stroke_rect(x, y, w, h);
+    }
+
+    /// 円を描画する
+    pub fn arc(
+        &self,
+        x: f64,
+        y: f64,
+        radius: f64,
+        start_angle: f64,
+        end_angle: f64,
+        stroke_color: &str,
+        fill_color: &str,
+    ) {
+        self.context
+            .set_stroke_style(&JsValue::from_str(stroke_color));
+        self.context.set_fill_style(&JsValue::from_str(fill_color));
+
+        self.context.begin_path();
+        self.context
+            .arc(x, y, radius, start_angle, end_angle)
+            .unwrap();
+        self.context.fill();
+        self.context.stroke();
+    }
+}
+
+#[wasm_bindgen]
 pub struct Life {
     x: u32,
     y: u32,
+}
+
+impl Life {
+    pub fn new(x: u32, y: u32) -> Self {
+        Self { x: x, y: y }
+    }
+
+    pub fn render(&self, renderer: &Renderer) {
+        renderer.arc(
+            self.x as f64,
+            self.y as f64,
+            5.0,
+            0.0,
+            std::f64::consts::PI * 2.0,
+            "#192",
+            "#192",
+        );
+    }
 }
 
 #[wasm_bindgen]
@@ -40,36 +108,20 @@ pub struct Universe {
     width: u32,
     height: u32,
     lives: Vec<Life>,
+    renderer: Renderer,
 }
 
 #[wasm_bindgen]
 impl Universe {
-    pub fn new() -> Self {
-        let width = 500;
-        let height = 500;
+    pub fn new(width: u32, height: u32, renderer: Renderer) -> Self {
         let lives: Vec<Life> = vec![];
 
         Self {
-            width: width,
-            height: height,
-            lives: lives,
+            width,
+            height,
+            lives,
+            renderer,
         }
-    }
-
-    pub fn width(&self) -> u32 {
-        self.width
-    }
-
-    pub fn height(&self) -> u32 {
-        self.height
-    }
-
-    pub fn lives(&self) -> *const Life {
-        self.lives.as_ptr()
-    }
-
-    pub fn lives_size(&self) -> usize {
-        self.lives.len()
     }
 
     pub fn birth(&mut self, num: u32) {
@@ -110,31 +162,15 @@ impl Universe {
         })
     }
 
-    pub fn render(&self, context: web_sys::CanvasRenderingContext2d) {
-        let tmp_stroke_style = context.stroke_style();
-        let tmp_fill_style = context.fill_style();
-        let color = &JsValue::from_str("#192");
-
-        context.set_stroke_style(color);
-        context.set_fill_style(color);
+    pub fn render(&self) {
+        self.renderer
+            .fill_rect(0.0, 0.0, self.width as f64, self.height as f64, "#fff");
+        self.renderer
+            .stroke_rect(0.0, 0.0, self.width as f64, self.height as f64, "#000");
 
         self.lives.iter().for_each(|life| {
-            context.begin_path();
-            context
-                .arc(
-                    life.x as f64,
-                    life.y as f64,
-                    5.0,
-                    0.0,
-                    std::f64::consts::PI * 2.0,
-                )
-                .unwrap();
-            context.fill();
-            context.stroke();
-        });
-
-        context.set_stroke_style(&tmp_stroke_style);
-        context.set_fill_style(&tmp_fill_style);
+            life.render(&self.renderer);
+        })
     }
 }
 
@@ -147,74 +183,47 @@ fn type_of<T>(_: T) -> String {
 
 #[wasm_bindgen]
 pub fn start() {
-    let mut universe = Universe::new();
-    universe.birth(300);
+    const WORLD_WIDTH: u32 = 500;
+    const WORLD_HEIGHT: u32 = 500;
 
     let element = document()
         .get_element_by_id("canvas-universe")
         .expect("not found `canvas`");
     let canvas = element.dyn_into::<web_sys::HtmlCanvasElement>().unwrap();
-    canvas.set_width(((universe.width as f32) * 1.2) as u32);
-    canvas.set_height(((universe.height as f32) * 1.2) as u32);
+    canvas.set_width(((WORLD_WIDTH as f32) * 1.2) as u32);
+    canvas.set_height(((WORLD_HEIGHT as f32) * 1.2) as u32);
 
+    let context = canvas
+        .get_context("2d")
+        .unwrap()
+        .unwrap()
+        .dyn_into::<web_sys::CanvasRenderingContext2d>()
+        .unwrap();
+    let renderer = Renderer::new(context);
+
+    let mut universe = Universe::new(WORLD_WIDTH, WORLD_HEIGHT, renderer);
+    universe.birth(300);
     render_loop(universe);
 }
 
 fn render_loop(universe: Universe) {
     {
-        let width = universe.width as f64;
-        let height = universe.height as f64;
         let univ = Rc::new(RefCell::new(universe)).clone();
 
         let f = Rc::new(RefCell::new(None));
         let g = f.clone();
         *g.borrow_mut() = Some(Closure::wrap(Box::new(move || {
-            draw_field(width, height);
             {
                 univ.borrow_mut().next_step();
             }
 
-            (univ.borrow() as &RefCell<Universe>)
-                .borrow()
-                .render(get_canvas_context());
+            (univ.borrow() as &RefCell<Universe>).borrow().render();
 
             request_animation_frame(f.as_ref().borrow().as_ref().unwrap());
         }) as Box<dyn FnMut()>));
 
         request_animation_frame(g.as_ref().borrow().as_ref().unwrap());
     }
-}
-
-fn draw_field(width: f64, height: f64) {
-    let element = document()
-        .get_element_by_id("canvas-universe")
-        .expect("not found `canvas`");
-    let canvas = element.dyn_into::<web_sys::HtmlCanvasElement>().unwrap();
-    let ctx = canvas
-        .get_context("2d")
-        .unwrap()
-        .unwrap()
-        .dyn_into::<web_sys::CanvasRenderingContext2d>()
-        .unwrap();
-
-    ctx.set_fill_style(&JsValue::from_str("#fff"));
-    ctx.fill_rect(0.0, 0.0, width, height);
-    ctx.set_stroke_style(&JsValue::from_str("#000"));
-    ctx.stroke_rect(0.0, 0.0, width, height);
-    ctx.stroke();
-}
-
-fn get_canvas_context() -> web_sys::CanvasRenderingContext2d {
-    let element = document()
-        .get_element_by_id("canvas-universe")
-        .expect("not found `canvas`");
-    let canvas = element.dyn_into::<web_sys::HtmlCanvasElement>().unwrap();
-    canvas
-        .get_context("2d")
-        .unwrap()
-        .unwrap()
-        .dyn_into::<web_sys::CanvasRenderingContext2d>()
-        .unwrap()
 }
 
 fn window() -> web_sys::Window {
