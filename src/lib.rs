@@ -6,6 +6,7 @@ use rand::distributions::{Distribution, Standard};
 use rand::Rng;
 use std::borrow::Borrow;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
@@ -102,7 +103,20 @@ impl Distribution<Direction> for Standard {
 }
 
 #[wasm_bindgen]
+#[derive(Clone, Copy, Hash, PartialEq)]
+pub enum Species {
+    Plant,
+    // 草食動物
+    HERBIVORE,
+    // 肉食動物
+    CARNIVORE,
+}
+
+impl Eq for Species {}
+
+#[wasm_bindgen]
 pub struct Life {
+    species: Species,
     x: u32,
     y: u32,
     // 直径
@@ -115,14 +129,23 @@ pub struct Life {
 const DEFAULT_LIFE_SIZE: u32 = 10;
 
 impl Life {
-    pub fn new(x: u32, y: u32) -> Self {
+    pub fn new(species: Species, x: u32, y: u32) -> Self {
         Self {
+            species: species,
             x: x,
             y: y,
             size: DEFAULT_LIFE_SIZE,
             rng: rand::thread_rng(),
             direction: None,
-            color: "#192",
+            color: Self::get_color(species),
+        }
+    }
+
+    fn get_color(species: Species) -> &'static str {
+        match species {
+            Species::Plant => "#02ab83",
+            Species::HERBIVORE => "#eac435",
+            Species::CARNIVORE => "#fb4d3d",
         }
     }
 
@@ -215,19 +238,21 @@ impl Universe {
         }
     }
 
-    pub fn birth(&mut self, num: u32) {
+    pub fn birth(&mut self, species: Species, num: u32) {
         let mut rng = rand::thread_rng();
-
         // half of size
         let hos = (DEFAULT_LIFE_SIZE as f32 / 2.0f32).ceil() as u32;
-        self.lives = (0..num)
+
+        let mut lives: Vec<Life> = (0..num)
             .map(|_| {
                 Life::new(
+                    species,
                     rng.gen_range(hos, self.field.width - hos),
                     rng.gen_range(hos, self.field.height - hos),
                 )
             })
             .collect();
+        self.lives.append(&mut lives);
     }
 
     pub fn next_step(&mut self) {
@@ -287,7 +312,15 @@ pub fn start() {
     let renderer = Renderer::new(context);
 
     let mut universe = Universe::new(WORLD_WIDTH, WORLD_HEIGHT, renderer);
-    universe.birth(300);
+
+    let mut seeds: HashMap<Species, u32> = HashMap::new();
+    seeds.insert(Species::Plant, 200);
+    seeds.insert(Species::HERBIVORE, 100);
+    seeds.insert(Species::CARNIVORE, 10);
+    seeds.iter().for_each(|(species, num)| {
+        universe.birth(*species, *num);
+    });
+
     render_loop(universe);
 }
 
