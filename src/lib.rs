@@ -5,8 +5,9 @@ extern crate web_sys;
 use rand::distributions::{Distribution, Standard};
 use rand::Rng;
 use std::borrow::Borrow;
-use std::cell::RefCell;
+use std::cell::{Ref, RefCell};
 use std::collections::HashMap;
+use std::f32;
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
@@ -210,6 +211,32 @@ impl Life {
             self.color,
         );
     }
+
+    /// 円周上の点座標を返す
+    /// degree: 角度（度）
+    // TODO: test
+    fn get_periphery_point(&self, degree: f32) -> Point {
+        let rad = degree * f32::consts::PI / 180_f32;
+        let r = self.size as f32 / 2_f32;
+
+        let x = self.x as f32 + r * rad.sin();
+        let y = self.y as f32 + r * rad.cos();
+
+        Point {
+            x: x as u32,
+            y: y as u32,
+        }
+    }
+}
+
+impl Collision for Life {
+    fn get_up_left_point(&self) -> Point {
+        self.get_periphery_point(135.0)
+    }
+
+    fn get_down_right_point(&self) -> Point {
+        self.get_periphery_point(315.0)
+    }
 }
 
 #[wasm_bindgen]
@@ -218,22 +245,207 @@ pub struct Field {
     height: u32,
 }
 
+const LENGTH_OF_A_WORLD_SIDE: u32 = 500;
+const WORLD_WIDTH: u32 = LENGTH_OF_A_WORLD_SIDE;
+const WORLD_HEIGHT: u32 = LENGTH_OF_A_WORLD_SIDE;
+const QUAD_TREE_LEVEL_COUNT: usize = 4;
+
+/// 座標軸上の 1点を表す
+#[wasm_bindgen]
+pub struct Point {
+    x: u32,
+    y: u32,
+}
+
+#[wasm_bindgen]
+pub struct CollisionDetector {
+    quad_tree: QuadTree,
+}
+
+#[wasm_bindgen]
+pub struct QuadTree {
+    world_width: u32,
+    world_height: u32,
+    spaces: Vec<Option<Rc<RefCell<QuadTreeSpace>>>>,
+}
+
+// #[wasm_bindgen]
+// TODO: remove
+// pub struct QuadTreeLevel {
+//     spaces: Vec<QuadTreeSpace>,
+// }
+
+#[wasm_bindgen]
+pub struct QuadTreeSpace {
+    head_node: Rc<RefCell<Option<QuadTreeNode>>>,
+}
+
+#[wasm_bindgen]
+pub struct QuadTreeNode {
+    belongs_to: Rc<RefCell<Option<QuadTreeSpace>>>,
+    life: Rc<RefCell<Life>>,
+    prev_node: Rc<RefCell<Option<QuadTreeNode>>>,
+    next_node: Rc<RefCell<Option<QuadTreeNode>>>,
+}
+
+trait Collision {
+    fn get_up_left_point(&self) -> Point;
+    fn get_down_right_point(&self) -> Point;
+}
+
+impl Point {
+    pub fn new(x: u32, y: u32) -> Self {
+        Self { x, y }
+    }
+}
+
+impl CollisionDetector {
+    pub fn new(world_width: u32, world_height: u32) -> Self {
+        Self {
+            quad_tree: QuadTree::new(world_width, world_height),
+        }
+    }
+
+    pub fn add_member(&mut self, life: Rc<RefCell<Life>>) {
+        self.quad_tree.add_member(life);
+    }
+}
+
+impl QuadTree {
+    pub fn new(world_width: u32, world_height: u32) -> Self {
+        let mut spaces: Vec<Rc<RefCell<QuadTreeSpace>>> = vec![];
+        for i in 0..QUAD_TREE_LEVEL_COUNT {
+            for _ in 0..2usize.pow(i as u32).pow(2u32) {
+                let space = QuadTreeSpace::new(Rc::new(RefCell::new(None)));
+                spaces.push(Rc::new(RefCell::new(space)));
+            }
+        }
+
+        Self {
+            world_width,
+            world_height,
+            spaces,
+        }
+    }
+
+    pub fn add_member(&mut self, life: Rc<RefCell<Life>>) {
+        let mut space_index: usize = 0;
+        {
+            space_index = self.get_belongs_to_space_index(life.as_ref().borrow());
+        }
+        let space: Rc<RefCell<Option<QuadTreeSpace>>> = self.spaces[space_index];
+
+        let cloned_space: Rc<RefCell<Option<QuadTreeSpace>>> = Rc::clone(&space);
+        let node: Rc<RefCell<Option<QuadTreeNode>>> = Rc::new(RefCell::new(Some(
+            QuadTreeNode::new(cloned_space, Rc::clone(&life), None, None),
+        )));
+
+        if space.head_node.is_none() {
+            space.head_node = Some(Rc::clone(node));
+        } else {
+            let second_node = space.head_node.unwrap();
+            second_node.prev_node = Some(node.clone());
+            node.next_node = Some(second_node.clone());
+        }
+    }
+
+    fn get_belongs_to_space_index(&self, life: Ref<Life>) -> usize {
+        const MAX_LEVEL_INDEX: u32 = QUAD_TREE_LEVEL_COUNT as u32 - 1;
+
+        let up_left_point = life.get_up_left_point();
+        let up_left_index = up_left_point.to_quad_tree_index(MAX_LEVEL_INDEX);
+
+        let down_right_point = life.get_down_right_point();
+        let down_right_index = down_right_point.to_quad_tree_index(MAX_LEVEL_INDEX);
+
+        (up_left_index ^ down_right_index) as usize
+
+        // let mut index = up_left_index ^ down_right_index;
+        //
+        // let prev_level = MAX_LEVEL_INDEX - 1;
+        // let mut on_level = 0;
+        // for level in prev_level..=0 {
+        //     let lower_2bit = index & 0x3;
+        //     if 0 < lower_2bit {
+        //         on_level = level;
+        //     }
+        //     index >>= 2;
+        // }
+        //
+        // on_level
+    }
+}
+
+impl Point {
+    /// モートン空間でのインデックスに変換する
+    /// level で階層を指定する
+    pub fn to_quad_tree_index(&self, level: u32) -> u32 {
+        let unit_length = 2_u32.pow(level).pow(2);
+
+        let x: u32 = self.x / unit_length;
+        let y: u32 = self.y / unit_length;
+
+        x | y
+    }
+}
+
+// impl QuadTreeLevel {
+//     pub fn new(tree_space_count: usize) -> Self {
+//         let mut spaces = vec![];
+//         for _ in 0..tree_space_count {
+//             let space = QuadTreeSpace::new(None);
+//             spaces.push(space)
+//         }
+//
+//         Self { spaces }
+//     }
+// }
+
+impl QuadTreeSpace {
+    pub fn new(head_node: Rc<RefCell<Option<QuadTreeNode>>>) -> Self {
+        Self { head_node }
+    }
+}
+
+impl QuadTreeNode {
+    pub fn new(
+        belongs_to: Rc<RefCell<Option<QuadTreeSpace>>>,
+        life: Rc<RefCell<Life>>,
+        prev_node: Rc<RefCell<Option<QuadTreeNode>>>,
+        next_node: Rc<RefCell<Option<QuadTreeNode>>>,
+    ) -> Self {
+        Self {
+            belongs_to,
+            life,
+            prev_node,
+            next_node,
+        }
+    }
+}
+
 #[wasm_bindgen]
 pub struct Universe {
     field: Field,
-    lives: Vec<Life>,
+    lives: Vec<Rc<RefCell<Life>>>,
+    collision_detector: CollisionDetector,
     renderer: Renderer,
 }
 
 #[wasm_bindgen]
 impl Universe {
-    pub fn new(width: u32, height: u32, renderer: Renderer) -> Self {
+    pub fn new(
+        width: u32,
+        height: u32,
+        collision_detector: CollisionDetector,
+        renderer: Renderer,
+    ) -> Self {
         let field = Field { width, height };
-        let lives: Vec<Life> = vec![];
+        let lives: Vec<Rc<RefCell<Life>>> = vec![];
 
         Self {
             field,
             lives,
+            collision_detector,
             renderer,
         }
     }
@@ -243,22 +455,25 @@ impl Universe {
         // half of size
         let hos = (DEFAULT_LIFE_SIZE as f32 / 2.0f32).ceil() as u32;
 
-        let mut lives: Vec<Life> = (0..num)
+        let mut lives: Vec<Rc<RefCell<Life>>> = (0..num)
             .map(|_| {
-                Life::new(
+                Rc::new(RefCell::new(Life::new(
                     species,
                     rng.gen_range(hos, self.field.width - hos),
                     rng.gen_range(hos, self.field.height - hos),
-                )
+                )))
             })
             .collect();
         self.lives.append(&mut lives);
+        lives.iter().for_each(|life| {
+            self.collision_detector.add_member(Rc::clone(life));
+        });
     }
 
     pub fn next_step(&mut self) {
         let field = &self.field;
         self.lives.iter_mut().for_each(move |life| {
-            life.next_step(field);
+            Rc::get_mut(life).unwrap().next_step(field);
         })
     }
 
@@ -279,7 +494,7 @@ impl Universe {
         );
 
         self.lives.iter().for_each(|life| {
-            life.render(&self.renderer);
+            life.as_ref().render(&self.renderer);
         })
     }
 }
@@ -293,8 +508,7 @@ fn type_of<T>(_: T) -> String {
 
 #[wasm_bindgen]
 pub fn start() {
-    const WORLD_WIDTH: u32 = 500;
-    const WORLD_HEIGHT: u32 = 500;
+    let collision_detector = CollisionDetector::new(WORLD_WIDTH, WORLD_HEIGHT);
 
     let element = document()
         .get_element_by_id("canvas-universe")
@@ -311,7 +525,7 @@ pub fn start() {
         .unwrap();
     let renderer = Renderer::new(context);
 
-    let mut universe = Universe::new(WORLD_WIDTH, WORLD_HEIGHT, renderer);
+    let mut universe = Universe::new(WORLD_WIDTH, WORLD_HEIGHT, collision_detector, renderer);
 
     let mut seeds: HashMap<Species, u32> = HashMap::new();
     seeds.insert(Species::Plant, 200);
